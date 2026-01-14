@@ -1,0 +1,93 @@
+#!/usr/bin/python3.12
+from pathlib import Path
+import sys
+import argparse
+import textwrap
+from dataclasses import dataclass, field
+import heapq
+from typing import List
+from math import pow
+
+
+@dataclass(order=True, eq=True, frozen=True)
+class File:
+    file_size: float = field(compare=True)
+    file_path: Path = field(compare=False)
+
+
+def collect_file_info(dir_path: Path, is_relative: bool = True) -> List[File]:
+    return [
+        File(
+            path_obj.stat().st_size,
+            Path("/").joinpath(*path_obj.parts[-2:])
+            if is_relative else path_obj.absolute()
+        )
+        for path_obj in Path(dir_path).rglob("*")
+        if path_obj.is_file()
+    ]
+
+
+def sort_files_by_size(files_lst: list[File], quantity: int = 15) -> None:
+    for idx, file in enumerate(heapq.nlargest(quantity, files_lst), start=1):
+        show_text = textwrap.shorten(
+            str(file.file_path),
+            width=90,
+            placeholder="...",
+        )
+        size_mb = file.file_size / (10 ** 6)
+        sys.stdout.write(f"{idx:>2}.{size_mb:6.1f}MB --> {show_text}\n")
+        sys.stdout.flush()
+
+
+def argument_parser() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="SortMaximumFiles",
+        description="Sort the files recursively according to its size.",
+        allow_abbrev=True,
+        add_help=True,
+        epilog="Thanks for using.",
+    )
+    parser.add_argument(
+        "dir_path",
+        type=str,
+        help="specify the directory path.",
+    )
+    parser.add_argument(
+        "-q", "--quantity",
+        default=15,
+        action="store",
+        type=int,
+        dest="quantity",
+        help="the quantity of files to be displayed.",
+    )
+    return parser.parse_args()
+
+
+def get_dir_path(path: Path) -> Path:
+    if not path.is_absolute():
+        path = Path.cwd().joinpath(path)
+    if path.is_dir():
+        return path
+    else:
+        raise SystemExit(
+            f"Path-{str(path)!r} doesn't exist or is not a directory!\n"
+            f"Exit."
+        )
+
+
+def main() -> None:
+    args = argument_parser()
+    many_files = collect_file_info(
+        get_dir_path(Path(args.dir_path)),
+        is_relative=True
+    )
+    total_volume = sum(file.file_size for file in many_files) / pow(10, 9)
+    print(
+        f"Quantity: {len(many_files)} files; "
+        f"total Volume: {total_volume:6.2f}GB", end="\n" * 2
+    )
+    sort_files_by_size(many_files, quantity=args.quantity)
+
+
+if __name__ == "__main__":
+    main()

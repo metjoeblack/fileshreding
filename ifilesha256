@@ -1,0 +1,71 @@
+#! /home/shangguan/Downloads/PycharmProjects/cryptographic_topic/.venv/bin/python3
+
+import argparse
+import hashlib
+import hmac
+from pathlib import Path
+from typing import Never
+import colorama
+from functools import partial
+
+
+def calculate_hash(
+    file_path: Path | str,
+    hash_method="sha256",
+    chunk_size=4_096,
+) -> str:
+    hash_obj = hashlib.new(hash_method)
+    with Path(file_path).open("rb") as file_handler:
+        for chunk in iter(partial(file_handler.read, chunk_size), b""):
+            hash_obj.update(chunk)
+    return hash_obj.hexdigest()
+
+
+def verify_file_hash(downloaded_file: Path | str, expected_hash: str) -> bool:
+    recomputed_hash = calculate_hash(Path(downloaded_file))
+    return hmac.compare_digest(recomputed_hash, expected_hash)
+
+
+def get_terminal_options() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="HashVerifier",
+        description="Verify the hash value(data integrity) of a file.",
+        add_help=True,
+        allow_abbrev=True,
+        epilog="Thanks for using this script",
+    )
+    parser.add_argument(
+        "file",
+        help="Path to the downloaded file",
+    )
+    parser.add_argument(
+        "-s", "--hash",
+        required=True,
+        action="store",
+        dest="hash",
+        help="Expected hash value",
+    )
+    return parser.parse_args()
+
+
+def main() -> Never:
+    colorama.init()
+    args: argparse.Namespace = get_terminal_options()
+    if not (file_path := Path(rf"{args.file}")).is_file():
+        raise SystemExit(
+            f"Path-{str(file_path)!r} doesn't exist or is not a file!\n"
+            f"Exit."
+        )
+
+    if verify_file_hash(args.file, args.hash):
+        print(f"{colorama.Fore.GREEN}[+] Hash verification successful. "
+              f"The file is authentic."
+        )
+    else:
+        print(
+            f"{colorama.Fore.RED}[-] Hash verification failed. "
+            f"The file may have been tampered with or is not authentic."
+        )
+
+if __name__ == '__main__':
+    main()
